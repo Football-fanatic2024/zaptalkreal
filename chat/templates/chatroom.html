@@ -180,7 +180,8 @@
             {% endfor %}
         </div>
 
-        <form method="post" id="send-form">
+        <!-- FIXED: removed method="post" -->
+        <form id="send-form">
             {% csrf_token %}
             <div class="input-area">
                 <input id="message-input" type="text" name="text" placeholder="Type a message..." required autocomplete="off">
@@ -234,6 +235,21 @@
         messagesDiv.appendChild(msgDiv);
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     };
+
+    /* FIXED: WebSocket-only message sending */
+    form.addEventListener("submit", function(event) {
+        event.preventDefault();
+
+        const message = input.value.trim();
+        if (!message) return;
+
+        chatSocket.send(JSON.stringify({
+            text: message,
+            sender: currentUser
+        }));
+
+        input.value = "";
+    });
 
     /* CALL SOCKET + WEBRTC */
     const callStatus = document.getElementById("call-status");
