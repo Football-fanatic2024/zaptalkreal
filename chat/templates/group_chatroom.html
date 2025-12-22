@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zaptalk</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298, #6a1b9a, #4a148c, #00bcd4);
+            background-size: 400% 400%;
+            animation: swirl 25s ease infinite;
+            color: #fff;
+            min-height: 100vh;
+        }
+
+        @keyframes swirl {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .chat-box {
+            background: rgba(255,255,255,0.08);
+            padding: 20px;
+            border-radius: 16px;
+            max-width: 700px;
+            margin: 40px auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 16px;
+            font-size: 24px;
+            color: #fff;
+        }
+
+        #messages {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 60vh;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 70%;
+        }
+
+        .message.self {
+            align-self: flex-end;
+            text-align: right;
+        }
+
+        .bubble {
+            padding: 10px 14px;
+            border-radius: 16px;
+            background-color: rgba(255,255,255,0.2);
+            color: #fff;
+            font-size: 15px;
+            word-wrap: break-word;
+        }
+
+        .message.self .bubble {
+            background-color: rgba(33,150,243,0.35);
+        }
+
+        .sender {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #e3f2fd;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #cfd8dc;
+            margin-top: 4px;
+        }
+
+        .input-area {
+            margin-top: 20px;
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            background-color: #2196f3;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #1976d2;
+        }
+
+        a.back-link {
+            display: block;
+            margin-top: 16px;
+            text-align: center;
+            color: #e1bee7;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        a.back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-box">
+        <h2>{{ group.name }} Chat</h2>
+
+        <div id="messages">
+            {% for message in messages %}
+                <div class="message {% if message.sender == request.user %}self{% endif %}">
+                    <div class="sender">{{ message.sender.username }}</div>
+                    <div class="bubble">{{ message.text }}</div>
+                    <div class="timestamp">{{ message.timestamp }}</div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <form method="post" id="send-form">
+            {% csrf_token %}
+            <div class="input-area">
+                <input id="message-input" type="text" name="text" placeholder="Type a message..." required autocomplete="off">
+                <button type="submit">Send</button>
+            </div>
+        </form>
+
+        <a href="{% url 'inbox' %}" class="back-link">Back to Inbox</a>
+    </div>
+
+    <script>
+    (function() {
+        const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+        const groupId = "{{ group.id }}";
+        const currentUser = "{{ request.user.username }}";
+        const socket = new WebSocket(protocol + "://" + window.location.host + "/ws/group/" + groupId + "/");
+
+        const messagesDiv = document.getElementById("messages");
+        const form = document.getElementById("send-form");
+        const input = document.getElementById("message-input");
+
+        let unreadCount = 0;
+        const originalTitle = document.title;
+
+        function appendMessage(sender, text, timestamp) {
+            const msgDiv = document.createElement("div");
+            msgDiv.className = "message" + (sender === currentUser ? " self" : "");
+            msgDiv.innerHTML = `
+                <div class="sender">${sender}</div>
+                <div class="bubble">${text}</div>
+                <div class="timestamp">${timestamp}</div>
+            `;
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            appendMessage(data.sender, data.text, data.timestamp);
+
+            if (data.sender !== currentUser) {
+                unreadCount++;
+                document.title = `(${unreadCount}) Zaptalk`;
+            }
+        };
+
+        window.addEventListener("focus", () => {
+            unreadCount = 0;
+            document.title = originalTitle;
+        });
+
+        // Optional: send via WebSocket for instant echo (if server supports receive)
+        form.addEventListener("submit", function(e) {
+            // Keep standard form submit for persistence; remove if you switch to pure WebSocket send
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Group</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f2f2f2; padding: 20px; }
+        .box { max-width: 500px; margin: 50px auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; margin-bottom: 20px; }
+        form { display: flex; flex-direction: column; }
+        input, select { margin-bottom: 15px; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
+        button { padding: 10px; border-radius: 5px; border: none; background-color: #4CAF50; color: white; font-size: 1em; cursor: pointer; }
+        a { display: block; text-align: center; margin-top: 20px; color: #333; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h2>Edit Group: {{ group.name }}</h2>
+        <form method="post">
+            {% csrf_token %}
+            <label for="name">Group Name</label>
+            <input type="text" name="name" value="{{ group.name }}" required>
+
+            <label for="members">Members</label>
+            <select name="members" multiple>
+                {% for user in users %}
+                    <option value="{{ user.username }}" {% if user in group.members.all %}selected{% endif %}>
+                        {{ user.username }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <button type="submit">Save Changes</button>
+        </form>
+        <a href="{% url 'group_chatroom' group.id %}">← Back to Group Chat</a>
+    </div>
+</body>
+</html>

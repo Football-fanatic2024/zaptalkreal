@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Profile</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f2f2f2; padding: 20px; }
+        .profile-box { max-width: 400px; margin: 50px auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; margin-bottom: 20px; }
+        form { display: flex; flex-direction: column; }
+        input, textarea { margin-bottom: 15px; padding: 10px; border-radius: 5px; border: 1px solid #ccc; }
+        button { padding: 10px; border-radius: 5px; border: none; background-color: #4CAF50; color: white; font-size: 1em; cursor: pointer; }
+        img { max-width: 100px; border-radius: 50%; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="profile-box">
+        <h2>Edit Profile</h2>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            {% if request.user.profile.profile_picture %}
+                <img src="{{ request.user.profile.profile_picture.url }}" alt="Profile Picture">
+            {% endif %}
+            {{ form.as_p }}
+            <button type="submit">Save</button>
+        </form>
+    </div>
+</body>
+</html>

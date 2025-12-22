@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Inbox</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background: #0f172a;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h2 {
+            margin-bottom: 20px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section h3 {
+            margin-bottom: 10px;
+        }
+
+        .entry {
+            background: #1e293b;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .entry a {
+            color: #38bdf8;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .entry a:hover {
+            text-decoration: underline;
+        }
+
+        .empty {
+            opacity: 0.7;
+        }
+
+        .actions {
+            margin-top: 40px;
+            display: flex;
+            gap: 20px;
+        }
+
+        .actions a {
+            color: #f87171;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .actions a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <h2>Welcome, {{ request.user.username }}</h2>
+
+        <div class="section">
+            <h3>Messages</h3>
+            {% for message in messages %}
+                <div class="entry">
+                    <a href="{% url 'chatroom' message.sender.username %}">
+                        {{ message.sender.username }} — {{ message.text|truncatechars:30 }}
+                    </a>
+                </div>
+            {% empty %}
+                <p class="empty">No messages yet.</p>
+            {% endfor %}
+        </div>
+
+        <div class="section">
+            <h3>Groups</h3>
+            {% for group in groups %}
+                <div class="entry">
+                    <a href="{% url 'group_chatroom' group.id %}">{{ group.name }}</a>
+                </div>
+            {% empty %}
+                <p class="empty">No groups yet.</p>
+            {% endfor %}
+        </div>
+
+        <div class="actions">
+            <a href="{% url 'logout' %}">Logout</a>
+            <a href="{% url 'delete_user' request.user.id %}"
+               onclick="return confirm('Are you sure you want to delete your account?');">
+               Delete My Account
+            </a>
+        </div>
+
+    </div>
+</body>
+</html>

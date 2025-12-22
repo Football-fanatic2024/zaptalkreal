@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<!-- TEST: CALL VERSION -->
+
+<html>
+<head>
+    <title>Zaptalk</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, sans-serif;
+            background: linear-gradient(135deg, #1e3c72, #2a5298, #6a1b9a, #4a148c, #00bcd4);
+            background-size: 400% 400%;
+            animation: swirl 25s ease infinite;
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        @keyframes swirl {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* LEFT SIDE — CHAT */
+        .chat-box {
+            flex: 2;
+            background: rgba(255,255,255,0.08);
+            padding: 20px;
+            border-radius: 0 16px 16px 0;
+            overflow-y: auto;
+        }
+
+        h2 {
+            text-align: center;
+            margin-bottom: 16px;
+            font-size: 24px;
+            color: #fff;
+        }
+
+        #messages {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 65vh;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 70%;
+        }
+
+        .message.self {
+            align-self: flex-end;
+            text-align: right;
+        }
+
+        .bubble {
+            padding: 10px 14px;
+            border-radius: 16px;
+            background-color: rgba(255,255,255,0.2);
+            color: #fff;
+            font-size: 15px;
+            word-wrap: break-word;
+        }
+
+        .message.self .bubble {
+            background-color: rgba(33,150,243,0.35);
+        }
+
+        .sender {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #e3f2fd;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #cfd8dc;
+            margin-top: 4px;
+        }
+
+        .input-area {
+            margin-top: 20px;
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            background-color: #2196f3;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #1976d2;
+        }
+
+        a.back-link {
+            display: block;
+            margin-top: 16px;
+            text-align: center;
+            color: #e1bee7;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        a.back-link:hover {
+            text-decoration: underline;
+        }
+
+        /* RIGHT SIDE — CALL PANEL */
+        .call-panel {
+            width: 280px;
+            background: rgba(0,0,0,0.35);
+            padding: 20px;
+            border-left: 1px solid rgba(255,255,255,0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .call-panel h3 {
+            margin: 0;
+            text-align: center;
+        }
+
+        #call-status {
+            text-align: center;
+            font-size: 16px;
+            opacity: 0.9;
+        }
+
+        .call-controls button {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- LEFT SIDE: CHAT -->
+    <div class="chat-box">
+        <h2>Chat with {{ other_user.username }}</h2>
+
+        <button id="call-btn" style="width:100%; margin-bottom:15px;">Start Call</button>
+
+        <div id="messages">
+            {% for message in messages %}
+                <div class="message {% if message.sender == request.user %}self{% endif %}">
+                    <div class="sender">{{ message.sender.username }}</div>
+                    <div class="bubble">{{ message.text }}</div>
+                    <div class="timestamp">{{ message.timestamp }}</div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <form method="post" id="send-form">
+            {% csrf_token %}
+            <div class="input-area">
+                <input id="message-input" type="text" name="text" placeholder="Type a message..." required autocomplete="off">
+                <button type="submit">Send</button>
+            </div>
+        </form>
+
+        <a href="{% url 'inbox' %}" class="back-link">Back to Inbox</a>
+    </div>
+
+    <!-- RIGHT SIDE: CALL PANEL -->
+    <div class="call-panel">
+        <h3>Voice Call</h3>
+        <div id="call-status">Not in a call</div>
+
+        <audio id="remoteAudio" autoplay></audio>
+
+        <div class="call-controls">
+            <button id="mute-btn">Mute</button>
+            <button id="hangup-btn">Hang Up</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+(function() {
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const username = "{{ other_user.username }}";
+    const currentUser = "{{ request.user.username }}";
+
+    /* CHAT SOCKET */
+    const chatSocket = new WebSocket(
+        protocol + "://" + window.location.host + "/ws/chat/" + username + "/"
+    );
+
+    const messagesDiv = document.getElementById("messages");
+    const form = document.getElementById("send-form");
+    const input = document.getElementById("message-input");
+
+    chatSocket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        const msgDiv = document.createElement("div");
+        msgDiv.className = "message" + (data.sender === currentUser ? " self" : "");
+        msgDiv.innerHTML = `
+            <div class="sender">${data.sender}</div>
+            <div class="bubble">${data.text}</div>
+            <div class="timestamp">${data.timestamp}</div>
+        `;
+        messagesDiv.appendChild(msgDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    };
+
+    /* CALL SOCKET + WEBRTC */
+    const callStatus = document.getElementById("call-status");
+    const callBtn = document.getElementById("call-btn");
+    const muteBtn = document.getElementById("mute-btn");
+    const hangupBtn = document.getElementById("hangup-btn");
+    const remoteAudio = document.getElementById("remoteAudio");
+
+    let callSocket = new WebSocket(
+        protocol + "://" + window.location.host + "/ws/call/" + currentUser + "/"
+    );
+
+    let localStream = null;
+    let peerConnection = null;
+    let isMuted = false;
+
+    const rtcConfig = {
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    };
+
+    callSocket.onmessage = async function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "offer" && data.to === currentUser) {
+            callStatus.innerText = `Incoming call from ${data.from}...`;
+            await handleIncomingOffer(data.offer, data.from);
+        }
+
+        if (data.type === "answer" && data.to === currentUser) {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            callStatus.innerText = "In call";
+        }
+
+        if (data.type === "ice" && data.to === currentUser) {
+            if (peerConnection && data.candidate) {
+                await peerConnection.addIceCandidate(data.candidate);
+            }
+        }
+    };
+
+    async function createPeerConnection() {
+        peerConnection = new RTCPeerConnection(rtcConfig);
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                callSocket.send(JSON.stringify({
+                    type: "ice",
+                    candidate: event.candidate,
+                    from: currentUser,
+                    to: username
+                }));
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            remoteAudio.srcObject = event.streams[0];
+        };
+    }
+
+    async function getLocalStream() {
+        if (!localStream) {
+            localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+        return localStream;
+    }
+
+    callBtn.addEventListener("click", async () => {
+        callStatus.innerText = "Starting call...";
+
+        await createPeerConnection();
+        const stream = await getLocalStream();
+        stream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, stream);
+        });
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        callSocket.send(JSON.stringify({
+            type: "offer",
+            offer: offer,
+            from: currentUser,
+            to: username
+        }));
+
+        callStatus.innerText = "Calling...";
+    });
+
+    async function handleIncomingOffer(offer, fromUser) {
+        await createPeerConnection();
+        const stream = await getLocalStream();
+        stream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, stream);
+        });
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        callSocket.send(JSON.stringify({
+            type: "answer",
+            answer: answer,
+            from: currentUser,
+            to: fromUser
+        }));
+
+        callStatus.innerText = "In call";
+    }
+
+    muteBtn.addEventListener("click", () => {
+        if (!localStream) return;
+        isMuted = !isMuted;
+        localStream.getAudioTracks().forEach(track => {
+            track.enabled = !isMuted;
+        });
+        muteBtn.textContent = isMuted ? "Unmute" : "Mute";
+    });
+
+    hangupBtn.addEventListener("click", () => {
+        if (peerConnection) peerConnection.close();
+        peerConnection = null;
+
+        if (localStream) {
+            localStream.getTracks().forEach(track => track.stop());
+            localStream = null;
+        }
+
+        callStatus.innerText = "Not in a call";
+        muteBtn.textContent = "Mute";
+        isMuted = false;
+    });
+
+})();
+</script>
+
+</body>
+</html>

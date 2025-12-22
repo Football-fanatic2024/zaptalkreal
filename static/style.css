@@ -1,0 +1,72 @@
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #e5ddd5;
+    margin: 0;
+    padding: 0;
+}
+
+.chat-box {
+    max-width: 600px;
+    margin: 20px auto;
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.message {
+    margin: 10px;
+    padding: 10px 15px;
+    border-radius: 20px;
+    max-width: 70%;
+    display: inline-block;
+    clear: both;
+    font-size: 0.95em;
+    line-height: 1.4;
+}
+
+.sent {
+    background-color: #dcf8c6; /* WhatsApp green bubble */
+    float: right;
+    text-align: right;
+}
+
+.received {
+    background-color: #ffffff;
+    float: left;
+    text-align: left;
+}
+
+.timestamp {
+    font-size: 0.75em;
+    color: #888;
+    margin-top: 5px;
+}
+
+form {
+    display: flex;
+    justify-content: center;
+    padding: 10px;
+    background: #f0f0f0;
+    border-top: 1px solid #ddd;
+}
+
+form input[type="text"] {
+    flex: 1;
+    padding: 10px;
+    border-radius: 20px;
+    border: 1px solid #ccc;
+    margin-right: 10px;
+}
+
+form button {
+    padding: 10px 20px;
+    border-radius: 20px;
+    border: none;
+    background-color: #4CAF50;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
