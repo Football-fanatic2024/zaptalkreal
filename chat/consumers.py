@@ -49,13 +49,13 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if hasattr(self, "room_group"):
             await self.channel_layer.group_discard(self.room_group, self.channel_name)
 
-    # ⭐ FIXED: This saves messages + broadcasts them
+    # ============================
+    # RECEIVE JSON (chat + call events)
+    # ============================
     async def receive_json(self, content):
+        msg_type = content.get("type")
         text = content.get("text")
         sender_username = content.get("sender")
-
-        if not text:
-            return
 
         # Get sender user object
         sender = await database_sync_to_async(User.objects.get)(username=sender_username)
@@ -66,24 +66,52 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             other_username = self.scope["url_route"]["kwargs"]["username"]
             receiver = await database_sync_to_async(User.objects.get)(username=other_username)
 
-        # Save message to DB
-        msg = await database_sync_to_async(Message.objects.create)(
-            sender=sender,
-            receiver=receiver,
-            text=text,
-        )
+        # ⭐ CASE 1: Normal chat message
+        if msg_type == "chat":
+            if not text:
+                return
 
-        # Broadcast saved message
-        await self.channel_layer.group_send(
-            self.room_group,
-            {
-                "type": "chat_message",
-                "text": msg.text,
-                "sender": sender.username,
-                "timestamp": msg.timestamp.isoformat(),
-            }
-        )
+            msg = await database_sync_to_async(Message.objects.create)(
+                sender=sender,
+                receiver=receiver,
+                text=text,
+            )
 
+            await self.channel_layer.group_send(
+                self.room_group,
+                {
+                    "type": "chat_message",
+                    "text": msg.text,
+                    "sender": sender.username,
+                    "timestamp": msg.timestamp.isoformat(),
+                }
+            )
+            return
+
+        # ⭐ CASE 2: Call started — system message
+        if msg_type == "call_started":
+            system_text = f"{sender.username} started a call"
+
+            msg = await database_sync_to_async(Message.objects.create)(
+                sender=sender,
+                receiver=receiver,
+                text=system_text,
+            )
+
+            await self.channel_layer.group_send(
+                self.room_group,
+                {
+                    "type": "chat_message",
+                    "text": msg.text,
+                    "sender": sender.username,
+                    "timestamp": msg.timestamp.isoformat(),
+                }
+            )
+            return
+
+    # ============================
+    # SEND MESSAGE TO CLIENT
+    # ============================
     async def chat_message(self, event):
         await self.send_json({
             "sender": event["sender"],
