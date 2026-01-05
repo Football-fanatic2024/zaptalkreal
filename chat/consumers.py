@@ -1,6 +1,11 @@
 import re
 import json
 from channels.generic.websocket import AsyncJsonWebsocketConsumer, AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
+from chat.models import Message
+from django.contrib.auth import get_user_model
+
+User = get_user_model()
 
 # ============================
 # Utility: Safe group names
@@ -23,7 +28,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if "username" in self.scope["url_route"]["kwargs"]:
             other_username = self.scope["url_route"]["kwargs"]["username"]
 
-            # Deterministic room name
             self.room_group = (
                 f"chat_{safe_group_name(min(user.username, other_username))}_"
                 f"{safe_group_name(max(user.username, other_username))}"
@@ -45,33 +49,38 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if hasattr(self, "room_group"):
             await self.channel_layer.group_discard(self.room_group, self.channel_name)
 
-    # ⭐ THIS WAS MISSING — this is why messages didn’t work
+    # ⭐ FIXED: This saves messages + broadcasts them
     async def receive_json(self, content):
-        """
-        Handles incoming chat messages.
-        Expected JSON:
-        {
-            "text": "...",
-            "sender": "...",
-            "timestamp": "..."
-        }
-        """
-
         text = content.get("text")
-        sender = content.get("sender")
-        timestamp = content.get("timestamp")
+        sender_username = content.get("sender")
 
         if not text:
             return
 
-        # Broadcast to everyone in the room
+        # Get sender user object
+        sender = await database_sync_to_async(User.objects.get)(username=sender_username)
+
+        # Determine receiver (1-on-1 chat)
+        receiver = None
+        if "username" in self.scope["url_route"]["kwargs"]:
+            other_username = self.scope["url_route"]["kwargs"]["username"]
+            receiver = await database_sync_to_async(User.objects.get)(username=other_username)
+
+        # Save message to DB
+        msg = await database_sync_to_async(Message.objects.create)(
+            sender=sender,
+            receiver=receiver,
+            text=text,
+        )
+
+        # Broadcast saved message
         await self.channel_layer.group_send(
             self.room_group,
             {
                 "type": "chat_message",
-                "text": text,
-                "sender": sender,
-                "timestamp": timestamp,
+                "text": msg.text,
+                "sender": sender.username,
+                "timestamp": msg.timestamp.isoformat(),
             }
         )
 
@@ -88,11 +97,6 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 # ============================
 class CallConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        """
-        Each user gets their own signaling group:
-        call_<username>
-        """
-
         self.username = self.scope["user"].username
         self.room_group_name = f"call_{safe_group_name(self.username)}"
 
@@ -112,13 +116,6 @@ class CallConsumer(AsyncWebsocketConsumer):
         )
 
     async def receive(self, text_data):
-        """
-        Incoming WebRTC signaling messages:
-        - offer
-        - answer
-        - ice
-        Forward them to the target user's call group.
-        """
         data = json.loads(text_data)
 
         target = data.get("to")
