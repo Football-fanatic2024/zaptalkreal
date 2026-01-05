@@ -23,7 +23,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if "username" in self.scope["url_route"]["kwargs"]:
             other_username = self.scope["url_route"]["kwargs"]["username"]
 
-            # Make deterministic room name
+            # Deterministic room name
             self.room_group = (
                 f"chat_{safe_group_name(min(user.username, other_username))}_"
                 f"{safe_group_name(max(user.username, other_username))}"
@@ -45,6 +45,36 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if hasattr(self, "room_group"):
             await self.channel_layer.group_discard(self.room_group, self.channel_name)
 
+    # ⭐ THIS WAS MISSING — this is why messages didn’t work
+    async def receive_json(self, content):
+        """
+        Handles incoming chat messages.
+        Expected JSON:
+        {
+            "text": "...",
+            "sender": "...",
+            "timestamp": "..."
+        }
+        """
+
+        text = content.get("text")
+        sender = content.get("sender")
+        timestamp = content.get("timestamp")
+
+        if not text:
+            return
+
+        # Broadcast to everyone in the room
+        await self.channel_layer.group_send(
+            self.room_group,
+            {
+                "type": "chat_message",
+                "text": text,
+                "sender": sender,
+                "timestamp": timestamp,
+            }
+        )
+
     async def chat_message(self, event):
         await self.send_json({
             "sender": event["sender"],
@@ -63,11 +93,9 @@ class CallConsumer(AsyncWebsocketConsumer):
         call_<username>
         """
 
-        # ⭐ FIXED: Always use the logged-in user, not the URL
         self.username = self.scope["user"].username
         self.room_group_name = f"call_{safe_group_name(self.username)}"
 
-        # Debug print (optional)
         print(f"[CALL] Connected: {self.username}")
 
         await self.channel_layer.group_add(
@@ -108,7 +136,4 @@ class CallConsumer(AsyncWebsocketConsumer):
         )
 
     async def call_signal(self, event):
-        """
-        Send the forwarded signaling data to the WebSocket.
-        """
         await self.send(text_data=json.dumps(event["data"]))
