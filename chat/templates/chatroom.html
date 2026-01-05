@@ -180,7 +180,6 @@
             {% endfor %}
         </div>
 
-        <!-- FIXED: removed method="post" -->
         <form id="send-form">
             {% csrf_token %}
             <div class="input-area">
@@ -236,7 +235,6 @@
         messagesDiv.scrollTop = messagesDiv.scrollHeight;
     };
 
-    /* FIXED: WebSocket-only message sending */
     form.addEventListener("submit", function(event) {
         event.preventDefault();
 
@@ -244,6 +242,7 @@
         if (!message) return;
 
         chatSocket.send(JSON.stringify({
+            type: "chat",
             text: message,
             sender: currentUser
         }));
@@ -316,7 +315,14 @@
         return localStream;
     }
 
+    /* ⭐ INSERTED: CALL_STARTED MESSAGE */
     callBtn.addEventListener("click", async () => {
+
+        chatSocket.send(JSON.stringify({
+            type: "call_started",
+            sender: currentUser
+        }));
+
         callStatus.innerText = "Starting call...";
 
         await createPeerConnection();
