@@ -53,7 +53,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
     # RECEIVE JSON (chat + call events)
     # ============================
     async def receive_json(self, content):
-        msg_type = content.get("type")
+        msg_type = content.get("type")  # may be None for old messages
         text = content.get("text")
         sender_username = content.get("sender")
 
@@ -66,8 +66,8 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             other_username = self.scope["url_route"]["kwargs"]["username"]
             receiver = await database_sync_to_async(User.objects.get)(username=other_username)
 
-        # ⭐ CASE 1: Normal chat message
-        if msg_type == "chat":
+        # ⭐ CASE 1: Normal chat message (old format OR new format)
+        if msg_type == "chat" or msg_type is None:
             if not text:
                 return
 
